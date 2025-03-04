@@ -16,4 +16,5 @@ youtube-performance-analysis/
 |
 ├── dashboard/                  # Visualization
 │   ├── app.py                  
-│   └── visualizations.py      
+│   └── visualizations.py
+|   --assets                    #css elements?
