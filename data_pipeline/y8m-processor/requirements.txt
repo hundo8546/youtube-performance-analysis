@@ -1,0 +1,6 @@
+numpy
+numpyencoder
+pytest
+requests
+six
+tensorflow
