@@ -1,8 +1,13 @@
 from googleapiclient.discovery import build
 import json
+import os
+
 # from numpyencoder import NumpyEncoder
 
-API_KEY = "AIzaSyBM055Jjmu7QYP-wC84zsgSFMIbLm0F1kA"
+API_KEY = os.environ.get("YOUTUBE_API_KEY")
+
+if not API_KEY:
+    raise ValueError("Set API_KEY environment variables")
 
 
 class YTApiDataJoiner:
