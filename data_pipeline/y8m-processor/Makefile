@@ -16,11 +16,16 @@ build: .venv ## build requirements and virtual environment
 
 clean: ## Remove all installed dependences to start fresh
 	rm -rf .venv
+	rm .test
 
-test: .venv ## Run tests
+.test: $(SRC_FILES) .venv
 	.venv/bin/pytest
+	touch .test
 
-process: test ## Process a TFRecord file. Usage: make process TF_FILE=path/name.tfrecord
+test: .test ## Run tests
+	
+
+process: .test ## Process a TFRecord file. Usage: make process TF_FILE=path/name.tfrecord
 	@if [ -z "$(TF_FILE)" ]; then \
         echo "Error: Argument 'TF_FILE' is required."; \
         exit 1; \

@@ -1,6 +1,7 @@
 import datetime
 import json
 from numpyencoder import NumpyEncoder
+import os
 from pathlib import Path
 import re
 import requests
@@ -15,16 +16,16 @@ Y8M_FEATURE_DESCRIPTION = {
 }
 
 def parse_video_id(jsonp_input):
-  """
-  The JSONP format of the video ID pair is: 
-  i("nXSc","0sf943sWZls");
-  Rather than loading with another library it's easy to just parse with regexp
-  """
-  match = re.search(r'i\(".*?","(.*?)"\);', jsonp_input)
-  if match:
-      return match.group(1) # Youtube video ID is second item
-  else:
-      return None
+    """
+    The JSONP format of the video ID pair is: 
+    i("nXSc","0sf943sWZls");
+    Rather than loading with another library it's easy to just parse with regexp
+    """
+    match = re.search(r'i\(".*?","(.*?)"\);', jsonp_input)
+    if match:
+        return match.group(1) # Youtube video ID is second item
+    else:
+        return None
 
 def fetch_youtube_id(y8m_id):
   """
@@ -63,29 +64,42 @@ def parse_example_record(serialized_example):
         "labels": list(example["labels"].values.numpy()),
     }
 
+def process_file(tfrecord_path):
+    """
+    Process a single tfrecord file, storing JSON output in output/data/
+    """
+    # Read the TFRecord dataset
+    raw_dataset = tf.data.TFRecordDataset(tfrecord_path)
+    filename = Path(tfrecord_path).stem
+    count=0
+    error_count = 0
+    current_time = datetime.datetime.now()
+    error_file_path = f"output/logs/errors_{filename}_{current_time.strftime('%H%M%S')}.log"
+    output_data = []
+    print(f"Starting count for {filename} at {current_time.strftime('%H:%M:%S')}...")
+    with open(error_file_path, "a") as errorfile:
+        for video in raw_dataset:
+            parsed_record = parse_example_record(video)
+            if parsed_record["youtube_id"] is None:
+                errorfile.write(f"{parsed_record['youtube8m_id']}\n")
+                error_count += 1
+            else:
+                output_data.append(parsed_record)
+            count+=1
+        print(f"Checked {count} videos, {error_count} could not be retrieved ({float(error_count)/count*100} percent)")
+        with open(f"output/data/{filename}.json", "w") as f:
+            json.dump(output_data, f, ensure_ascii=False, cls=NumpyEncoder, indent=2)
+            f.close() 
 
 if __name__=="__main__":
-  # Path to the TFRecord file, provided as commandline argument
-  tfrecord_path = sys.argv[1]
-  filename = Path(tfrecord_path).stem
-  # Read the TFRecord dataset
-  raw_dataset = tf.data.TFRecordDataset(tfrecord_path)
-  count=0
-  error_count = 0
-  current_time = datetime.datetime.now()
-  error_file_path = f"output/logs/errors_{filename}_{current_time.strftime('%H%M%S')}.log"
-  output_data = []
-  print(f"Starting count at {current_time.strftime('%H:%M:%S')}...")
-  with open(error_file_path, "a") as errorfile:
-    for video in raw_dataset:
-        parsed_record = parse_example_record(video)
-        if parsed_record["youtube_id"] is None:
-            errorfile.write(f"{parsed_record['youtube8m_id']}\n")
-            error_count += 1
-        else:
-            output_data.append(parsed_record)
-        count+=1
-    print(f"Checked {count} videos, {error_count} could not be retrieved ({float(error_count)/count*100} percent)")
-    with open(f"output/data/{filename}.json", "w") as f:
-        json.dump(output_data, f, ensure_ascii=False, cls=NumpyEncoder, indent=2)
-        f.close()
+    # Path to the TFRecord(s), provided as commandline argument
+    path = sys.argv[1]
+    if os.path.isdir(path): # directory provided, process all tfrecord files
+        for tfrecord_path in Path(path).glob('*.tfrecord'):
+            if tfrecord_path.is_file():
+                process_file(tfrecord_path)
+    elif os.path.isfile(path):
+            # Single file, process directly
+            process_file(path)
+    else:
+        raise ValueError(f"{path} is not a valid file or directory.")
