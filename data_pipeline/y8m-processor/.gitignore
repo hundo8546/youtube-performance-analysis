@@ -2,3 +2,4 @@
 .pytest_cache/*
 output/data/*.json
 output/logs/*.log
+.test
