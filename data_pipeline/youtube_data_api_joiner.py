@@ -45,7 +45,7 @@ class YTApiDataJoiner:
         error_videos = []
 
         for record in data:
-            print("Processing ", record["url"])
+            #print("Processing ", record["url"])
             yt_api_data = self.fetchVideoData(record["youtube_id"])
             if not yt_api_data or ("snippet" not in yt_api_data):
                 print("Data not found for ", record["youtube_id"])
