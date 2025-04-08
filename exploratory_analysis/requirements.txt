@@ -1,0 +1,11 @@
+boto3
+google-api-python-client
+jupyter
+matplotlib
+numpy
+pandas
+scikit-learn
+scipy
+shap
+statsmodels
+xgboost
