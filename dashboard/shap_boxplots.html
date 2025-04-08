@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Popularity - Feature Importance</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .box {
+            fill: steelblue;
+            opacity: 0.6;
+        }
+        .median-line {
+            stroke: black;
+            stroke-width: 2;
+        }
+        select {
+            margin: 20px;
+        }
+        svgcontainer: {
+            max-height:100px;
+            overflow:auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Impact on YouTube Engagement</h1>
+    <label for="yearSelect">Select Year:</label>
+    <select id="yearSelect">
+    </select><br />
+    <div id='svgcontainer'>
+    <svg id="boxPlot"></svg>
+    </div>
+    <script>
+        // Load the CSV
+        d3.csv("shap_values.csv").then(function(data) {
+            // Restructure the data into an object by variable and year
+            const shapData = d3.groups(data, d => d.variable, d => d.year).reduce((accumulator, [variable, yearGroup]) => {
+                //console.log(yearGroup);
+                 accumulator[variable] = yearGroup.reduce(
+                    (yearAccumulator, [year, value]) => {
+                     if (!yearAccumulator[year]) yearAccumulator[year] = value;
+                     return yearAccumulator;
+                 }, {});
+                return accumulator;
+            }, {});
+            console.log(Object.keys(shapData).sort());
+            //console.log(shapData);
+            // Populate year dropdown
+            const years = Array.from(new Set(data.map(d => d.year)));
+            const yearSelect = d3.select("#yearSelect");
+            yearSelect
+                .selectAll("option")
+                .data(years)
+                .enter()
+                .append("option")
+                .attr("value", d => d)
+                .text(d => d);
+
+            // Set the starting year to the first one in the list and draw it
+            yearSelect.property("value", years[0]);
+            updateBoxPlot(years[0], shapData);
+
+            yearSelect.on("change", function() {
+                const selectedYear = this.value;
+                updateBoxPlot(selectedYear, shapData);
+            });
+
+            // when year is selected, updat ethe box plot
+            function updateBoxPlot(selectedYear, shapData) {
+                console.log(shapData);
+                const boxData = Object.keys(shapData).sort().map(variable => {
+                    const values = shapData[variable][selectedYear];
+                    if (!values || values.length === 0) return null;  // Skip empty or undefined values
+                    return {
+                        variable: variable,
+                        ...getBoxStats(values.map(item => +item["value"]))
+                    };
+                }).filter(d => d !== null); // Filter out null variables
+
+                if (boxData.length === 0) return; // no data, don't draw
+                // Clear any existing plot
+                const svg = d3.select("#boxPlot");
+                svg.selectAll("*").remove();
+
+                // SVG dimensions
+                const margin = { top: 50, right: 30, bottom: 30, left: 120 };
+                const width = 800 - margin.left - margin.right;
+                const height = 2200 - margin.top - margin.bottom;
+                const svgContainer = svg
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                // Y Scale - stack variables
+                const yScale = d3.scaleBand()
+                    .domain(Object.keys(shapData))
+                    .range([0, height])
+                    .padding(0.5);
+
+                // Setup X Scale
+                const allValues = Object.values(shapData).flatMap(yearData => yearData[selectedYear] || []).map(item => +item["value"]);
+                // Ensure the boundaries are symmetrical
+                // TODO update this to be dynamic
+                //const boundary = d3.max([Math.abs(d3.min(allValues)), Math.abs(d3.max(allValues))]);
+                const boundary = .4;
+                const xScale = d3.scaleLinear()
+                    .domain([-1*boundary, boundary])
+                    .range([0, width]);
+
+                // Draw boxplots
+                svgContainer.selectAll(".box")
+                    .data(boxData)
+                    .enter().append("rect")
+                    .on("mouseover", (ev, d) => console.log(d)) // NEW: Add mouseover code for tooltip (TODO: Finish)
+                    .attr("class", "box")
+                    .style("fill", d => { if (d.mean<0) {return "orange";} if (d.mean==0) {return "grey"} {return "blue";}})
+                    .attr("x", d => xScale(d.q1)) // Q1
+                    .attr("y", d => yScale(d.variable) + yScale.bandwidth() / 4) // Centered in variable band
+                    .attr("height", yScale.bandwidth() / 2) // Box thickness
+                    .attr("width", d => xScale(d.q3) - xScale(d.q1)); // Width from Q1 to Q3
+
+                // Draw median line for each box
+                svgContainer.selectAll(".median-line")
+                    .data(boxData)
+                    .enter().append("line")
+                    .attr("class", "median-line")
+                    .attr("x1", d => xScale(d.median))
+                    .attr("x2", d => xScale(d.median))
+                    .attr("y1", d => yScale(d.variable) + yScale.bandwidth() / 4)
+                    .attr("y2", d => yScale(d.variable) + yScale.bandwidth() * 3 / 4);
+
+                // X Axis
+                svgContainer.append("g")
+                    .attr("transform", `translate(0, ${height})`)
+                    .call(d3.axisBottom(xScale))
+                    .append("text").text("Values");
+
+
+                // Y Axis (features)
+                svgContainer.append("g").call(d3.axisLeft(yScale));
+
+                // Axis Labels
+                svgContainer.append("text")
+                    .attr("x", width / 2)
+                    .attr("y", height + 40)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "14px")
+                    .text("SHAP Values (Feature importance)");
+
+                svgContainer.append("text")
+                    .attr("x", -height / 2)
+                    .attr("y", -60)
+                    .attr("transform", "rotate(-90)")
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "14px");
+                    //.text("Feature Variables");
+            }
+
+            // Compute stats for box plot (min, quartiles, max, mean)
+            function getBoxStats(values) {
+                values.sort(d3.ascending);
+                return {
+                    min: d3.min(values),
+                    q1: d3.quantile(values, 0.25),
+                    median: d3.quantile(values, 0.5),
+                    mean: d3.mean(values),
+                    q3: d3.quantile(values, 0.75),
+                    max: d3.max(values)
+                };
+            }
+        });
+    </script>
+</body>
+</html>
