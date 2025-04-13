@@ -6,11 +6,13 @@ help: ## Display this message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 # Directory where source files are located
-CODE_DIR = src
+CODE_DIR = y8m-processor/src
+# Directory where test files are located
+TESTS_DIR = y8m-processor/tests
 # All source files in the directory
 SRC_FILES = $(wildcard $(CODE_DIR)/*)
 
-build: .venv ## build requirements and virtual environment
+build: ## build requirements and virtual environment
 	python3 -m venv .venv
 	.venv/bin/pip3 install -r requirements.txt
 
@@ -19,7 +21,7 @@ clean: ## Remove all installed dependences to start fresh
 	rm .test
 
 .test: $(SRC_FILES) .venv
-	.venv/bin/pytest
+	.venv/bin/pytest $(TESTS_DIR)
 	touch .test
 
 test: .test ## Run tests
@@ -30,4 +32,7 @@ process: .test ## Process a TFRecord file. Usage: make process TF_FILE=path/name
         echo "Error: Argument 'TF_FILE' is required."; \
         exit 1; \
     fi
-	.venv/bin/python3 src/main.py $(TF_FILE)
+	.venv/bin/python3 y8m-processor/src/main.py $(TF_FILE)
+
+join: .test ## Join Data
+	.venv/bin/python3 join_data.py
