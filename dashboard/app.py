@@ -10,9 +10,38 @@ df = pd.read_csv('shap_values.csv')
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 app.layout = html.Div([
-    html.H1("Impact on YouTube Engagement", style={'textAlign': 'center'}),
+    html.H1("Impact of YouTube Video Content on Engagement", style={'textAlign': 'center'}),
+    html.P("""In this project, we joined content features form YouTube8m with viewcounts for YouTube videos. 
+           We fit predictive models for each year, an extracted feature importance (SHAP values, units of view count
+            percentile for the year) for the content features. Using this, we can examine how the impact of video 
+           contents on engagement changes over time.
+           """, style={'padding': '0px 20px 0px 20px'}),
+    html.P("""You can view the impact of an individual feature over time in the line chart below.  The orange region 
+           indicates the topic negatively predicted engagement. The blue region shows a positive impact on engagement.
+           Alternatively, expand the box plot and select the year of interest to see how feature impacts stack up 
+           comparatively. Clicking a feature in the box plot will select it in the line chart.
+           """, style={'padding': '0px 20px 0px 20px'}),
 
-    html.Button("View Box Plot for Feature Importance for YouTube Engagement", id="toggle-boxplot-button", n_clicks=0, style={'margin': '20px'}),
+    dbc.Collapse(
+        id='linegraph-collapse',
+        is_open=True,
+        children=[
+            html.Div([
+                html.Label("Select Category:"),
+                dcc.Dropdown(
+                    id='category-dropdown',
+                    options=[
+                        {'label': " ".join([word for word in wordninja.split(var)]), 'value': var}
+                        for var in sorted(df['variable'].unique())
+                    ],
+                    value=df['variable'].unique()[0],
+                    style={'width': '200px'}
+                )
+            ], style={'margin': '20px'}),
+            dcc.Graph(id='line-graph', style={'height': '600px'})
+        ]
+    ),
+        html.Button("View Box Plot for Feature Importance by year", id="toggle-boxplot-button", n_clicks=0, style={'margin': '20px'}),
     dbc.Collapse(
         id='boxplot-collapse',
         is_open=False,
@@ -26,30 +55,10 @@ app.layout = html.Div([
                     style={'width': '200px'}
                 )
             ], style={'margin': '20px'}),
-            dcc.Graph(id='shap-boxplot', style={'height': '800px'})
+            dcc.Graph(id='shap-boxplot', style={'height': '2048px'})
         ]
     ),
 
-    html.Button("View Line Graph for Mean Feature Importance Over Time", id="toggle-linegraph-button", n_clicks=0, style={'margin': '20px'}),
-    dbc.Collapse(
-        id='linegraph-collapse',
-        is_open=False,
-        children=[
-            html.Div([
-                html.Label("Select Category:"),
-                dcc.Dropdown(
-                    id='category-dropdown',
-                    options=[
-                        {'label': " ".join([word.title() for word in wordninja.split(var)]), 'value': var}
-                        for var in df['variable'].unique()
-                    ],
-                    value=df['variable'].unique()[0],
-                    style={'width': '200px'}
-                )
-            ], style={'margin': '20px'}),
-            dcc.Graph(id='line-graph', style={'height': '600px'})
-        ]
-    )
 ])
 
 @app.callback(
@@ -63,16 +72,6 @@ def toggle_boxplot_collapse(n_clicks, is_open):
     return is_open
 
 @app.callback(
-    Output('linegraph-collapse', 'is_open'),
-    Input('toggle-linegraph-button', 'n_clicks'),
-    State('linegraph-collapse', 'is_open')
-)
-def toggle_linegraph_collapse(n_clicks, is_open):
-    if n_clicks and n_clicks > 0:
-        return not is_open
-    return is_open
-
-@app.callback(
     Output('shap-boxplot', 'figure'),
     Input('year-dropdown', 'value')
 )
@@ -80,14 +79,15 @@ def update_boxplot(selected_year):
     filtered_df = df[df['year'] == selected_year]
     filtered_df = filtered_df[~filtered_df['variable'].str.startswith('posted_day_')]
     filtered_df['variable'] = filtered_df['variable'].apply(
-        lambda x: " ".join([word.title() for word in wordninja.split(x)])
+        lambda x: " ".join([word for word in wordninja.split(x)])
     )
     variables = filtered_df.groupby('variable')['value'].mean().sort_values(ascending=False).index.tolist()
     fig = go.Figure()
-
+    variables_to_display = []
     for variable in variables:
         var_data = filtered_df[filtered_df['variable'] == variable]['value']
         if len(var_data) > 0:
+            variables_to_display.append(variable)
             min_val = var_data.min()
             max_val = var_data.max()
             mean_val = var_data.mean()
@@ -137,10 +137,11 @@ def update_boxplot(selected_year):
         xaxis_title="SHAP Values (Feature Importance)",
         yaxis_title="Features",
         showlegend=False,
-        height=600,
-        margin=dict(l=150, r=50, t=100, b=100)
+        height=2048,
+        margin=dict(l=150, r=50, t=100, b=100),
+        
     )
-
+    print(fig.layout.yaxis)
     return fig
 
 @app.callback(
@@ -155,9 +156,29 @@ def update_line_graph(selected_category):
         x=mean_shap['year'],
         y=mean_shap['value'],
         mode='lines+markers',
-        name=selected_category
+        name=selected_category,
+        marker=dict(color="black")
     ))
-
+    boundary = max(abs(min(mean_shap['value'])), abs(max(mean_shap['value'])))*1.1
+    fig.update_yaxes(range=[-1*boundary, boundary])
+    fig.add_shape(
+        type="rect",
+        xref="paper", yref="y",
+        x0=0, x1=1, y0=0, y1=boundary,
+        fillcolor="blue",
+        opacity=0.3,
+        layer="below",
+        line_width=0,
+    )
+    fig.add_shape(
+        type="rect",
+        xref="paper", yref="y",
+        x0=0, x1=1, y0=-1*boundary, y1=0,
+        fillcolor="orange",
+        opacity=0.3,
+        layer="below",
+        line_width=0,
+    )
     fig.update_layout(
         title=f"Mean Feature Importance Over Time for {selected_category}",
         xaxis_title="Year",
@@ -167,6 +188,33 @@ def update_line_graph(selected_category):
         margin=dict(l=50, r=50, t=100, b=100)
     )
     return fig
+
+@app.callback(
+    Output('category-dropdown', 'value'),
+    Input('shap-boxplot', 'clickData'),
+    State('category-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def toggle_dropdown(clickData, current_value):
+    if clickData is None:
+        # Do nothing on initial load or non-click
+        return current_value
+    # Toggle selection in line chart.
+    clicked_topic = clickData['points'][0]['y'].replace(" ", "") # get the topic name clicked
+    print(clicked_topic)
+    return clicked_topic
+
+app.clientside_callback(
+    """
+    function(n_clicks) {
+        // Scroll to the linegraph
+        const element = document.getElementById('linegraph-collapse');
+        console.log(element);
+        element.scrollIntoView({behavior: 'smooth'});
+    }
+    """,
+    Input('shap-boxplot', 'clickData')
+)
 
 if __name__ == '__main__':
     app.run(debug=True)
