@@ -108,7 +108,8 @@ def update_boxplot(selected_year):
                 line=dict(color='black'),
                 boxmean=True,
                 whiskerwidth=0.7,
-                hoverinfo='skip'
+                hoverinfo='skip',
+                boxpoints=False # remove outliers for more legibility
             ))
             fig.add_trace(go.Scatter(
                 x=[mean_val],
