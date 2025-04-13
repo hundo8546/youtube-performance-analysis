@@ -142,7 +142,6 @@ def update_boxplot(selected_year):
         margin=dict(l=150, r=50, t=100, b=100),
         
     )
-    print(fig.layout.yaxis)
     return fig
 
 @app.callback(
@@ -202,7 +201,6 @@ def toggle_dropdown(clickData, current_value):
         return current_value
     # Toggle selection in line chart.
     clicked_topic = clickData['points'][0]['y'].replace(" ", "") # get the topic name clicked
-    print(clicked_topic)
     return clicked_topic
 
 app.clientside_callback(
@@ -218,4 +216,4 @@ app.clientside_callback(
 )
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

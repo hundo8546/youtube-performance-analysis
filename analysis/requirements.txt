@@ -1,5 +1,4 @@
 boto3
-google-api-python-client
 jupyter
 matplotlib
 numpy
