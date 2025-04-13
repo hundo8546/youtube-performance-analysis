@@ -2,7 +2,7 @@
 
 This reposistory contains the code for building a dataset combing [YouTube8m data](https://research.google.com/youtube8m/) with metadata from the YouTube API, and analyzing the factors that contribute most to view count. There are three primary areas:
 * `data_pipeline` - Python scripts to ingest YouTube8m data and fetch associated metadata from the YouTube API. 
-* `exploratory_analysis` - Jupyter Notebooks to explore and analyze the data for feature importance.
+* `analysis` - Jupyter Notebooks to explore and analyze the data for feature importance and generate SHAP csv.
 * `dashboard` - Contains the HTML source for the interactive visualization.
 
 # Part 1: Data Pipeline
